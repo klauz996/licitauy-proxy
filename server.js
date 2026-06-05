@@ -14,53 +14,62 @@ app.get('/arce', async (req, res) => {
     const days = parseInt(req.query.days) || 3;
     const tab = req.query.tab || 'lv';
     const tipoPub = tab === 'a' ? 'ADJ' : 'LL';
-    
+
     const now = new Date();
     const from = new Date(now);
     from.setDate(from.getDate() - days);
-
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const rango = `${fmt(from)}+00:00:00_${fmt(now)}+23:59:59`;
-
     const url = `https://www.comprasestatales.gub.uy/consultas/buscar/tipo-pub/${tipoPub}/tipo-fecha/MOD/orden/ORD_MOD/tipo-orden/DESC/rango-fecha/${rango}/page/1`;
 
     const response = await fetch(url, {
       timeout: 15000,
       headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' }
     });
-
     const html = await response.text();
 
-    // Extraer datos del HTML
-    const results = [];
-    const regex = /Ver detalles de la compra ([^\|]+)\|([^\|]+)\|([^·<]+)/g;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-      const tipo_num = match[1].trim();
-      const organismo = match[2].trim();
-      const unidad = match[3].trim();
-      results.push({ tipo_num, organismo, unidad });
-    }
+    const items = [];
 
-    // También extraemos descripciones y fechas
-    const bloques = html.split('Ver detalles de la compra').slice(1);
-    const items = bloques.map(b => {
-      const tipoNum = (b.match(/^([^\|]+)/) || [])[1]?.trim() || '';
-      const org = (b.match(/\|([^\|]+)\|/) || [])[1]?.trim() || '';
-      const desc = (b.match(/\n([A-ZÁÉÍÓÚÑ][^\n]{5,})\n/) || [])[1]?.trim() || '';
-      const fechaPub = (b.match(/Publicado:\s*([\d\/]+)/) || [])[1] || '';
-      const fechaCierre = (b.match(/Recepción de ofertas hasta:\s*([\d\/]+\s[\d:]+)/) || [])[1] || '';
-      const idMatch = b.match(/idCompra=(\d+)/);
+    // Extraer bloques de cada compra — separados por "compra-titulo"
+    const bloqueRe = /class="compra-titulo">([\s\S]*?)(?=class="compra-titulo"|$)/g;
+    let bloque;
+    while ((bloque = bloqueRe.exec(html)) !== null) {
+      const b = bloque[1];
+
+      // Tipo y número: "Compra Directa 1234/2026"
+      const tipoMatch = b.match(/href="[^"]*"[^>]*>\s*([^<]+\d{1,6}\/\d{4})/);
+      const tipoFull = tipoMatch ? tipoMatch[1].trim() : '';
+      const partes = tipoFull.match(/^(.*?)(\d+\/\d{4})$/);
+      const tipo = partes ? partes[1].trim() : tipoFull;
+      const nro = partes ? partes[2] : '';
+
+      // Organismo
+      const orgMatch = b.match(/class="compra-organismo[^"]*"[^>]*>([\s\S]*?)<\/[^>]+>/);
+      const organismo = orgMatch ? orgMatch[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim() : '';
+
+      // Descripción
+      const descMatch = b.match(/class="compra-descripcion[^"]*"[^>]*>([\s\S]*?)<\/[^>]+>/);
+      const desc = descMatch ? descMatch[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim() : '';
+
+      // Fecha publicación
+      const pubMatch = b.match(/Publicado[^:]*:\s*([\d\/]+)/);
+      const fechaPub = pubMatch ? pubMatch[1].trim() : '';
+
+      // Fecha cierre
+      const cierreMatch = b.match(/Recepci[oó]n de ofertas hasta[^:]*:\s*([\d\/]+ [\d:]+)/i);
+      const fechaCierre = cierreMatch ? cierreMatch[1].trim() : '';
+
+      // ID para URL
+      const idMatch = b.match(/\/consultas\/detalle\/id\/(\d+)/);
       const id = idMatch ? idMatch[1] : '';
 
-      // Separar tipo y número
-      const partes = tipoNum.split(/(\d+\/\d+)/);
-      const tipo = partes[0]?.trim() || tipoNum;
-      const nro = partes[1] || '';
-
-      return { id, tipo, nro, organismo: org, desc, fechaPub, fechaCierre,
-        url: id ? `https://www.comprasestatales.gub.uy/consultas/detalle/id/${id}` : 'https://www.comprasestatales.gub.uy' };
-    }).filter(i => i.tipo);
+      if (tipo || desc) {
+        items.push({
+          id, tipo, nro, organismo, desc, fechaPub, fechaCierre,
+          url: id ? `https://www.comprasestatales.gub.uy/consultas/detalle/id/${id}` : 'https://www.comprasestatales.gub.uy'
+        });
+      }
+    }
 
     res.json({ ok: true, total: items.length, items });
 
@@ -68,20 +77,18 @@ app.get('/arce', async (req, res) => {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+
 app.get('/debug', async (req, res) => {
   try {
     const url = 'https://www.comprasestatales.gub.uy/consultas/buscar/tipo-pub/LL/tipo-fecha/MOD/orden/ORD_MOD/tipo-orden/DESC/rango-fecha/2026-06-01+00:00:00_2026-06-05+23:59:59/page/1';
-    const response = await fetch(url, {
-      timeout: 15000,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' }
-    });
+    const response = await fetch(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
     const html = await response.text();
-    res.send('<pre>' + html.substring(0, 3000).replace(/</g,'&lt;') + '</pre>');
+    res.send('<pre>' + html.substring(0, 5000).replace(/</g,'&lt;') + '</pre>');
   } catch(e) {
     res.send('Error: ' + e.message);
   }
 });
 
-app.get('/', (req, res) => res.send('LicitaUY Proxy v2 - OK'));
+app.get('/', (req, res) => res.send('LicitaUY Proxy v3 - OK'));
 
 app.listen(PORT, () => console.log(`Puerto ${PORT}`));
