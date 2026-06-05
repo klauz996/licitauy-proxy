@@ -15,7 +15,7 @@ app.get('/debug2', async (req, res) => {
     const response = await fetch(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
     const html = await response.text();
     // Mostrar desde el medio del HTML donde están los resultados
-    res.send('<pre>' + html.substring(5000, 10000).replace(/</g,'&lt;') + '</pre>');
+    res.send('<pre>' + html.substring(10000, 15000).replace(/</g,'&lt;') + '</pre>');
   } catch(e) {
     res.send('Error: ' + e.message);
   }
