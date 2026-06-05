@@ -37,8 +37,8 @@ app.get('/arce', async (req, res) => {
       const item = m[1];
 
       // Título: "Compra Directa 7943/2026 - Organismo | Unidad"
-      const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/);
-      const title = titleMatch ? titleMatch[1].replace('<![CDATA[','').replace(']]>','').trim() : '';
+      const titleRaw = (item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+      const title = titleRaw.replace('<![CDATA[','').replace(']]>','').trim();
 
       // Separar por primer " - "
       const guionIdx = title.indexOf(' - ');
@@ -46,31 +46,45 @@ app.get('/arce', async (req, res) => {
       const orgFull = guionIdx >= 0 ? title.substring(guionIdx + 3).trim() : '';
 
       // Separar tipo y número: "Compra Directa 7943/2026"
-      const tipoMatch2 = tipoNro.match(/^(.*?)(\d+\/\d{4})$/);
-      const tipo = tipoMatch2 ? tipoMatch2[1].trim() : tipoNro;
-      const nro = tipoMatch2 ? tipoMatch2[2] : '';
+      const tipoMatch = tipoNro.match(/^(.*?)\s+(\S+\/\d{4})$/);
+      const tipo = tipoMatch ? tipoMatch[1].trim() : tipoNro;
+      const nro = tipoMatch ? tipoMatch[2] : '';
 
-      // Organismo: separar por "|"
-      const orgPartes = orgFull.split('|');
-      const organismo = orgPartes[0]?.trim() || '';
-      const unidad = orgPartes[1]?.trim() || '';
+      // Organismo: antes del "|"
+      const organismo = orgFull.split('|')[0].trim();
 
       // Descripción (CDATA)
-      const descMatch = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/);
-      const descRaw = descMatch ? descMatch[1] : '';
-      const descLimpia = descRaw.replace(/<br\/>/g, ' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      const descRaw = (item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || [])[1] || '';
+      const descLimpia = descRaw.replace(/<br\/>/g,' ').replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
 
-      // Fecha cierre desde descripción
+      // Fecha cierre
       const cierreMatch = descLimpia.match(/Recepci[oó]n de ofertas hasta:\s*([\d\/]+ [\d:]+)/i);
       const fechaCierre = cierreMatch ? cierreMatch[1] : '';
 
-      // Fecha publicación
+      // Fecha pub
       const pubMatch = descLimpia.match(/Publicado:\s*([\d\/]+)/);
       const fechaPub = pubMatch ? pubMatch[1] : '';
 
-      // Descripción sin las fechas al final
+      // Descripción limpia (sin fechas al final)
       const desc = descLimpia.split(' Recepción')[0].split(' Publicado:')[0].trim();
 
       // Link e ID
-      const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/);
-      const link = linkMatch ? linkMatch[1].trim() : ''
+      const link = (item.match(/<link>([\s\S]*?)<\/link>/) || [])[1]?.trim() || '';
+      const idMatch = link.match(/\/id\/(\d+)/);
+      const id = idMatch ? idMatch[1] : '';
+
+      if (tipo || desc) {
+        items.push({ id, tipo, nro, organismo, desc: desc || tipoNro, fechaPub, fechaCierre, url: link || 'https://www.comprasestatales.gub.uy' });
+      }
+    }
+
+    res.json({ ok: true, total: items.length, items });
+
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/', (req, res) => res.send('LicitaUY Proxy v8 - OK'));
+
+app.listen(PORT, () => console.log(`Puerto ${PORT}`));
