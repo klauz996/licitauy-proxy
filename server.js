@@ -68,6 +68,19 @@ app.get('/arce', async (req, res) => {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+app.get('/debug', async (req, res) => {
+  try {
+    const url = 'https://www.comprasestatales.gub.uy/consultas/buscar/tipo-pub/LL/tipo-fecha/MOD/orden/ORD_MOD/tipo-orden/DESC/rango-fecha/2026-06-01+00:00:00_2026-06-05+23:59:59/page/1';
+    const response = await fetch(url, {
+      timeout: 15000,
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' }
+    });
+    const html = await response.text();
+    res.send('<pre>' + html.substring(0, 3000).replace(/</g,'&lt;') + '</pre>');
+  } catch(e) {
+    res.send('Error: ' + e.message);
+  }
+});
 
 app.get('/', (req, res) => res.send('LicitaUY Proxy v2 - OK'));
 
