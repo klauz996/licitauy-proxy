@@ -21,69 +21,56 @@ app.get('/arce', async (req, res) => {
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const rango = `${fmt(from)}+00:00:00_${fmt(now)}+23:59:59`;
 
-    // Usar el RSS oficial de ARCE
     const url = `https://www.comprasestatales.gub.uy/consultas/rss/tipo-pub/${tipoPub}/tipo-fecha/MOD/orden/ORD_MOD/tipo-orden/DESC/rango-fecha/${rango}/page/1`;
 
     const response = await fetch(url, {
       timeout: 15000,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/rss+xml, text/xml' }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
     const xml = await response.text();
 
-    // Parsear RSS — formato simple de items
     const items = [];
     const itemRe = /<item>([\s\S]*?)<\/item>/g;
     let m;
+
     while ((m = itemRe.exec(xml)) !== null) {
       const item = m[1];
-      const title = (item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
-      const link = (item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
-      const desc = (item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || item.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || '';
-      const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
 
-      // El título tiene formato "Tipo Nro/Año | Organismo"
-      const partes = title.split('|');
-      const tipoNro = partes[0]?.trim() || '';
-      const organismo = partes[1]?.trim() || '';
-      const unidad = partes[2]?.trim() || '';
+      // Título: "Compra Directa 7943/2026 - Organismo | Unidad"
+      const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/);
+      const title = titleMatch ? titleMatch[1].replace('<![CDATA[','').replace(']]>','').trim() : '';
 
-      const tipoMatch = tipoNro.match(/^(.*?)(\d+\/\d{4})$/);
-      const tipo = tipoMatch ? tipoMatch[1].trim() : tipoNro;
-      const nro = tipoMatch ? tipoMatch[2] : '';
+      // Separar por primer " - "
+      const guionIdx = title.indexOf(' - ');
+      const tipoNro = guionIdx >= 0 ? title.substring(0, guionIdx).trim() : title;
+      const orgFull = guionIdx >= 0 ? title.substring(guionIdx + 3).trim() : '';
 
-      // ID desde el link
-      const idMatch = link.match(/\/id\/(\d+)/);
-      const id = idMatch ? idMatch[1] : '';
+      // Separar tipo y número: "Compra Directa 7943/2026"
+      const tipoMatch2 = tipoNro.match(/^(.*?)(\d+\/\d{4})$/);
+      const tipo = tipoMatch2 ? tipoMatch2[1].trim() : tipoNro;
+      const nro = tipoMatch2 ? tipoMatch2[2] : '';
 
-      // Fecha publicación desde pubDate
-      const fechaPub = pubDate ? new Date(pubDate).toLocaleDateString('es-UY') : '';
+      // Organismo: separar por "|"
+      const orgPartes = orgFull.split('|');
+      const organismo = orgPartes[0]?.trim() || '';
+      const unidad = orgPartes[1]?.trim() || '';
 
-      // Descripción limpia
-      const descLimpia = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Descripción (CDATA)
+      const descMatch = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/);
+      const descRaw = descMatch ? descMatch[1] : '';
+      const descLimpia = descRaw.replace(/<br\/>/g, ' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
-      if (tipoNro || descLimpia) {
-        items.push({ id, tipo, nro, organismo: organismo + (unidad ? ' - ' + unidad : ''), desc: descLimpia || tipoNro, fechaPub, fechaCierre: '', url: link || 'https://www.comprasestatales.gub.uy' });
-      }
-    }
+      // Fecha cierre desde descripción
+      const cierreMatch = descLimpia.match(/Recepci[oó]n de ofertas hasta:\s*([\d\/]+ [\d:]+)/i);
+      const fechaCierre = cierreMatch ? cierreMatch[1] : '';
 
-    res.json({ ok: true, total: items.length, items });
+      // Fecha publicación
+      const pubMatch = descLimpia.match(/Publicado:\s*([\d\/]+)/);
+      const fechaPub = pubMatch ? pubMatch[1] : '';
 
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
+      // Descripción sin las fechas al final
+      const desc = descLimpia.split(' Recepción')[0].split(' Publicado:')[0].trim();
 
-app.get('/debug', async (req, res) => {
-  try {
-    const url = 'https://www.comprasestatales.gub.uy/consultas/rss/tipo-pub/ALL/tipo-fecha/MOD/orden/ORD_MOD/tipo-orden/DESC/rango-fecha/2026-06-01+00:00:00_2026-06-05+23:59:59/page/1';
-    const response = await fetch(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const text = await response.text();
-    res.send('<pre>' + text.substring(0, 5000).replace(/</g, '&lt;') + '</pre>');
-  } catch(e) {
-    res.send('Error: ' + e.message);
-  }
-});
-
-app.get('/', (req, res) => res.send('LicitaUY Proxy v6 - OK'));
-
-app.listen(PORT, () => console.log(`Puerto ${PORT}`));
+      // Link e ID
+      const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/);
+      const link = linkMatch ? linkMatch[1].trim() : ''
