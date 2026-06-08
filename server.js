@@ -79,7 +79,7 @@ app.get('/detalle', async (req, res) => {
 
     // Parsear ítems: "Ítem Nº N NOMBRE (Cód. Artículo XXXX)"
     const items = [];
-    const itemRe = /Ítem\s+Nº\s+(\d+)\s+([A-ZÁÉÍÓÚÑÜ][^\n(]{2,80}?)\s*\(Cód\.\s*Artículo\s*(\d+)\)/gi;
+    const itemRe = /Ítem\s+Nº\s+(\d+)\s+(.+?)\s*\(Cód\.\s*Artículo\s*(\d+)\)/gi;
     let m;
     while ((m = itemRe.exec(html)) !== null) {
       items.push({
@@ -91,7 +91,7 @@ app.get('/detalle', async (req, res) => {
 
     // Fecha de publicación: "Publicado: DD/MM/YYYY HH:MMhs"
     let fechaPub = null;
-    const pubMatch = html.match(/Publicado[:\s]+(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
+    const pubMatch = html.match(/(?:Publicado|Fecha Publicaci[oó]n)[:\s]+(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
     if (pubMatch) fechaPub = pubMatch[1].trim();
 
     // Fecha de cierre: "Recepción de ofertas hasta: DD/MM/YYYY HH:MMhs"
@@ -106,6 +106,6 @@ app.get('/detalle', async (req, res) => {
 });
 
 // ── HEALTH CHECK ─────────────────────────────────────────────────────
-app.get('/', (req, res) => res.send('LicitaUY Proxy v9 - OK'));
+app.get('/', (req, res) => res.send('LicitaUY Proxy v10 - OK'));
 
 app.listen(PORT, () => console.log(`Puerto ${PORT}`));
