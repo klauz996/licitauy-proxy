@@ -60,51 +60,44 @@ app.get('/arce', async (req, res) => {
 });
 
 // ── RUTA: /detalle ───────────────────────────────────────────────────
-// Lee ítems, fecha de publicación y fecha de cierre de la página de detalle
 app.get('/detalle', async (req, res) => {
   const id = req.query.id;
-  if (!id || !/^\d+$/.test(id)) {
-    return res.json({ ok: false, error: 'ID inválido' });
-  }
+  if (!id || !/^\d+$/.test(id)) return res.json({ ok: false, error: 'ID invalido' });
   try {
     const url = `https://www.comprasestatales.gub.uy/consultas/detalle/id/${id}/mostrar-llamado/1`;
-    const response = await fetch(url, {
-      timeout: 12000,
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    if (!response.ok) {
-      return res.json({ ok: false, error: response.status });
-    }
+    const response = await fetch(url, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!response.ok) return res.json({ ok: false, error: response.status });
     const html = await response.text();
 
-    // Parsear ítems: "Ítem Nº N NOMBRE (Cód. Artículo XXXX)"
+    // Limpiar HTML a texto plano
+    const txt = html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Items: "Item No N NOMBRE (Cod. Articulo XXXX)"
     const items = [];
-    const itemRe = /Ítem\s+Nº\s+(\d+)\s+(.+?)\s*\(Cód\.\s*Artículo\s*(\d+)\)/gi;
+    const itemRe = /[IÍ]tem\s+N[oº°]\s*(\d+)\s+(.+?)\s*\(C[oó]d\.?\s*Art[ií]culo\s*(\d+)\)/gi;
     let m;
-    while ((m = itemRe.exec(html)) !== null) {
-      items.push({
-        nro: parseInt(m[1]),
-        nombre: m[2].trim(),
-        cod: parseInt(m[3])
-      });
+    while ((m = itemRe.exec(txt)) !== null) {
+      items.push({ nro: parseInt(m[1]), nombre: m[2].trim(), cod: parseInt(m[3]) });
     }
 
-    // Fecha de publicación: "Publicado: DD/MM/YYYY HH:MMhs"
+    // Fecha publicacion
     let fechaPub = null;
-    const pubMatch = html.match(/(?:Publicado|Fecha Publicaci[oó]n)[:\s]+(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
-    if (pubMatch) fechaPub = pubMatch[1].trim();
+    const pubM = txt.match(/(?:Fecha\s+Publicaci[oó]n|Publicado)\s*[:\s]\s*(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
+    if (pubM) fechaPub = pubM[1].trim();
 
-    // Fecha de cierre: "Recepción de ofertas hasta: DD/MM/YYYY HH:MMhs"
+    // Fecha cierre
     let fechaCierre = null;
-    const cierreMatch = html.match(/Recepci[oó]n de ofertas hasta[:\s]+(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
-    if (cierreMatch) fechaCierre = cierreMatch[1].trim().replace('hs', '').trim();
+    const cieM = txt.match(/Recepci[oó]n\s+de\s+ofertas\s+hasta\s*[:\s]\s*(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
+    if (cieM) fechaCierre = cieM[1].trim().replace('hs','').trim();
 
     res.json({ ok: true, id, items, fechaPub, fechaCierre });
-  } catch (error) {
-    res.json({ ok: false, error: error.message });
-  }
+  } catch(e) { res.json({ ok: false, error: e.message }); }
 });
-
 
 // ── RUTA: /debug ─────────────────────────────────────────────────────
 // Temporal para ver el HTML crudo que devuelve ARCE
