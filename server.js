@@ -105,6 +105,27 @@ app.get('/detalle', async (req, res) => {
   }
 });
 
+
+// ── RUTA: /debug ─────────────────────────────────────────────────────
+// Temporal para ver el HTML crudo que devuelve ARCE
+app.get('/debug', async (req, res) => {
+  const id = req.query.id;
+  if (!id) return res.send('Falta ?id=XXXX');
+  try {
+    const url = `https://www.comprasestatales.gub.uy/consultas/detalle/id/${id}/mostrar-llamado/1`;
+    const response = await fetch(url, {
+      timeout: 12000,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    const html = await response.text();
+    // Devolver los primeros 3000 chars como texto plano
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(html.substring(0, 3000));
+  } catch(e) {
+    res.send('ERROR: ' + e.message);
+  }
+});
+
 // ── HEALTH CHECK ─────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('LicitaUY Proxy v10 - OK'));
 
