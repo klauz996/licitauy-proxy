@@ -69,11 +69,25 @@ app.get('/detalle', async (req, res) => {
     if (!response.ok) return res.json({ ok: false, error: response.status });
     const html = await response.text();
 
-    // Limpiar HTML a texto plano
+    // Limpiar HTML a texto plano (incluyendo entidades HTML)
     const txt = html
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
+      .replace(/&oacute;/g, 'o')
+      .replace(/&aacute;/g, 'a')
+      .replace(/&eacute;/g, 'e')
+      .replace(/&iacute;/g, 'i')
+      .replace(/&uacute;/g, 'u')
+      .replace(/&ntilde;/g, 'n')
+      .replace(/&Oacute;/g, 'O')
+      .replace(/&Aacute;/g, 'A')
+      .replace(/&Eacute;/g, 'E')
+      .replace(/&Iacute;/g, 'I')
+      .replace(/&Uacute;/g, 'U')
+      .replace(/&Ntilde;/g, 'N')
+      .replace(/&sol;/g, '/')
+      .replace(/&#[0-9]+;/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -87,12 +101,12 @@ app.get('/detalle', async (req, res) => {
 
     // Fecha publicacion
     let fechaPub = null;
-    const pubM = txt.match(/(?:Fecha\s+Publicaci[oó]n|Publicado)\s*[:\s]\s*(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
+    const pubM = txt.match(/(?:Fecha\s+Publicaci[oó]n|Fecha\s+Publicacion|Publicado)\s*:?\s*(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
     if (pubM) fechaPub = pubM[1].trim();
 
     // Fecha cierre
     let fechaCierre = null;
-    const cieM = txt.match(/Recepci[oó]n\s+de\s+ofertas\s+hasta\s*[:\s]\s*(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
+    const cieM = txt.match(/Recepci[oó]n\s+de\s+ofertas\s+hasta\s*:?\s*(\d{2}\/\d{2}\/\d{4}(?:\s+[\d:]+(?:hs)?)?)/i);
     if (cieM) fechaCierre = cieM[1].trim().replace('hs','').trim();
 
     res.json({ ok: true, id, items, fechaPub, fechaCierre });
