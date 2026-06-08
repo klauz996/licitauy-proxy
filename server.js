@@ -38,7 +38,9 @@ app.get('/arce', async (req, res) => {
       const tipoMatch = tipoNro.match(/^(.*?)\s+(\S+\/\d{4})$/);
       const tipo = tipoMatch ? tipoMatch[1].trim() : tipoNro;
       const nro = tipoMatch ? tipoMatch[2] : '';
-      const organismo = orgFull.split('|')[0].trim();
+      const orgParts = orgFull.split('|');
+      const organismo = orgParts[0].trim();
+      const unidad = orgParts[1] ? orgParts[1].trim() : '';
       const descRaw = (item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || [])[1] || '';
       const descLimpia = descRaw.replace(/<br\/>/g,' ').replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
       const cierreMatch = descLimpia.match(/Recepci[oó]n de ofertas hasta:\s*([\d\/]+ [\d:]+)/i);
@@ -50,7 +52,7 @@ app.get('/arce', async (req, res) => {
       const idMatch = link.match(/\/id\/(\d+)/);
       const id = idMatch ? idMatch[1] : '';
       if (tipo || desc) {
-        items.push({ id, tipo, nro, organismo, desc: desc || tipoNro, fechaPub, fechaCierre, url: link || 'https://www.comprasestatales.gub.uy' });
+        items.push({ id, tipo, nro, organismo, unidad, desc: desc || tipoNro, fechaPub, fechaCierre, url: link || 'https://www.comprasestatales.gub.uy' });
       }
     }
     res.json({ ok: true, total: items.length, items });
